@@ -4,17 +4,18 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
-import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -47,12 +48,26 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private File getImage() throws IOException {
-        File storageDir = Environment.getExternalStorageDirectory();
-        File image = File.createTempFile("DCIM", ".jpg", storageDir);
-        _pathToPhoto = image.getAbsolutePath();
-        return image;
+    private class ImageLoader extends AsyncTask<Void, Void, File>{
+
+        @Override
+        protected File doInBackground(Void... params) {
+            try {
+                return getImage();
+            } catch (IOException e) {
+                e.printStackTrace();
+                return null;
+            }
+        }
+
+        private File getImage() throws IOException {
+            File storageDir = Environment.getExternalStorageDirectory();
+            File image = File.createTempFile("DCIM", ".jpg", storageDir);
+            _pathToPhoto = image.getAbsolutePath();
+            return image;
+        }
     }
+
 
     // code below taken from https://developer.android.com/training/camera/photobasics.html
     private void galleryAddPic() {
@@ -68,9 +83,11 @@ public class MainActivity extends AppCompatActivity {
         if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
             File photoFile = null;
             try {
-                photoFile = getImage();
-            } catch (IOException ex) {
-                ex.printStackTrace();
+                photoFile = new ImageLoader().execute((Void) null).get();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
             }
 
             if (photoFile != null) {
