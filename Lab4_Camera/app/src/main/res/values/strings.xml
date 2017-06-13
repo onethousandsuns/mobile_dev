@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Lab4_Camera</string>
+    <string name="take_photo_button">Take Photo</string>
 </resources>
