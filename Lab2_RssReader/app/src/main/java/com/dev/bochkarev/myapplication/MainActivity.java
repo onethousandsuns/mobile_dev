@@ -6,11 +6,8 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
-import android.text.TextUtils;
 import android.util.Log;
 import android.util.Xml;
-import android.view.View;
-import android.widget.Button;
 import android.widget.Toast;
 
 import org.xmlpull.v1.XmlPullParser;
@@ -25,123 +22,169 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity{
 
     private SwipeRefreshLayout _swipeLayout;
-    private Button _loadRssButton;
     private List<RssModel> _rssModels;
     private RecyclerView _rssRecycleView;
+
+    private InputStream _inputStream;
+    private XmlPullParser _xmlPullParser;
+
+    private static int NEWS_SCROOL_SPEED = 10;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        Toast.makeText(MainActivity.this,
+                "Swipe down to load BBC Business RSS feed",
+                Toast.LENGTH_LONG).show();
+
+        _inputStream = null;
+        _xmlPullParser = null;
+
         _swipeLayout = (SwipeRefreshLayout) findViewById(R.id.swipeLayout);
-        _loadRssButton = (Button) findViewById(R.id.load_rss_button);
         _rssRecycleView = (RecyclerView) findViewById(R.id.rssRecycleVIew);
 
-        LinearLayoutManager llm = new LinearLayoutManager(this);
-        llm.setOrientation(LinearLayoutManager.VERTICAL);
-        _rssRecycleView.setLayoutManager(llm);
+        final LinearLayoutManager linearLayoutManager = new LinearLayoutManager(this);
+        linearLayoutManager.setOrientation(LinearLayoutManager.VERTICAL);
+        _rssRecycleView.setLayoutManager(linearLayoutManager);
         _rssRecycleView.setAdapter( new RecycleViewRssAdapter(_rssModels) );
 
-        _loadRssButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                new RssLoader().execute((Void) null);
-            }
-        });
+        setOnScrollListener(linearLayoutManager);
+
         _swipeLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
             public void onRefresh() {
-                new RssLoader().execute((Void) null);
+                _rssRecycleView.setRecycledViewPool(new RecyclerView.RecycledViewPool());
+                if (_rssModels != null){
+                    _rssModels.clear();
+                }
+                if (_inputStream != null){
+                    try {
+                        _inputStream.close();
+                        _inputStream = null;
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+                if (_xmlPullParser != null){
+                    _xmlPullParser = null;
+                }
+                _rssRecycleView.clearOnScrollListeners();
+                setOnScrollListener(linearLayoutManager);
+                Log.d("RefreshListener", "User refreshed rss feed");
+                Toast.makeText(MainActivity.this,
+                    "Trying to refresh RSS feed ",
+                    Toast.LENGTH_LONG).show();
+
+                loadNextDataFromApi();
             }
         });
     }
 
-    public List<RssModel> parseFeed(InputStream inputStream) throws XmlPullParserException, IOException {
+    private void loadNextDataFromApi() {
+        new RssLoader().execute((Void) null);
+    }
+
+    private void setOnScrollListener(LinearLayoutManager linearLayoutManager)
+    {
+        _rssRecycleView.setOnScrollListener(new EndlessRecyclerOnScrollListener(linearLayoutManager) {
+            @Override
+            public void onLoadMore(int current_page) {
+                loadNextDataFromApi();
+            }
+        });
+    }
+
+    public List<RssModel> getNextNewsFromRssFeed() throws XmlPullParserException, IOException {
         String title = null;
         String link = null;
         String pubDate = null;
         boolean isItem = false;
         List<RssModel> items = new ArrayList<>();
+        int currentNews = 0;
 
-        try {
-            XmlPullParser xmlPullParser = Xml.newPullParser();
-            xmlPullParser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
-            xmlPullParser.setInput(inputStream, null);
+        if (_xmlPullParser == null) {
+            _xmlPullParser = Xml.newPullParser();
+            _xmlPullParser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
+            _xmlPullParser.setInput(_inputStream, null);
+        }
 
-            xmlPullParser.nextTag();
-            while (xmlPullParser.next() != XmlPullParser.END_DOCUMENT) {
-                int eventType = xmlPullParser.getEventType();
+        _xmlPullParser.nextTag();
 
-                String name = xmlPullParser.getName();
-                if(name == null)
-                    continue;
+        while (currentNews < NEWS_SCROOL_SPEED) {
+            if (_xmlPullParser.next() == XmlPullParser.END_DOCUMENT) {
+                _inputStream.close();
+                Log.d("NewsLoader", "Loaded news count: " + items.size());
+                Log.d("NewsLoader", "Reached end of RSS file");
+                return items;
+            }
 
-                if(eventType == XmlPullParser.END_TAG) {
-                    if(name.equalsIgnoreCase("item")) {
-                        isItem = false;
-                    }
-                    continue;
-                }
+            int eventType = _xmlPullParser.getEventType();
 
-                if (eventType == XmlPullParser.START_TAG) {
-                    if(name.equalsIgnoreCase("item")) {
-                        isItem = true;
-                        continue;
-                    }
-                }
+            String name = _xmlPullParser.getName();
+            if (name == null)
+                continue;
 
-                //Log.d("MainActivity", "Parsing name ==> " + name);
-                String result = "";
-                if (xmlPullParser.next() == XmlPullParser.TEXT) {
-                    result = xmlPullParser.getText();
-                    xmlPullParser.nextTag();
-                }
-
-                if (name.equalsIgnoreCase("title")) {
-                    title = result;
-                } else if (name.equalsIgnoreCase("link")) {
-                    link = result;
-                } else if (name.equalsIgnoreCase("pubDate")) {
-                    pubDate = result;
-                }
-
-                Log.d("MainActivity", "Parsing name ==> " + result);
-                if (title != null && link != null && pubDate != null) {
-                    if(isItem) {
-                        RssModel item = new RssModel(title, link, pubDate);
-                        items.add(item);
-                    }
-                    else {
-                        /*
-                        mFeedTitle = title;
-                        mFeedLink = link;
-                        mFeedDescription = pubDate;*/
-                    }
-
-                    title = null;
-                    link = null;
-                    pubDate = null;
+            if (eventType == XmlPullParser.END_TAG) {
+                if (name.equalsIgnoreCase("item")) {
                     isItem = false;
+                }
+                continue;
+            }
+
+            if (eventType == XmlPullParser.START_TAG) {
+                if (name.equalsIgnoreCase("item")) {
+                    isItem = true;
+                    continue;
                 }
             }
 
-            return items;
-        } finally {
-            inputStream.close();
+            String result = "";
+            if (_xmlPullParser.next() == XmlPullParser.TEXT) {
+                result = _xmlPullParser.getText();
+                _xmlPullParser.nextTag();
+            }
+
+            if (name.equalsIgnoreCase("title")) {
+                title = result;
+            } else if (name.equalsIgnoreCase("link")) {
+                link = result;
+            } else if (name.equalsIgnoreCase("pubDate")) {
+                pubDate = result;
+            }
+
+            if (title != null && link != null && pubDate != null) {
+                if (isItem) {
+                    RssModel item = new RssModel(title, link, pubDate);
+                    items.add(item);
+                    currentNews++;
+                }
+
+                title = null;
+                link = null;
+                pubDate = null;
+                isItem = false;
+            }
         }
+        Log.d("NewsLoader", "Loaded news count: " + items.size());
+        return items;
     }
 
 
     private class RssLoader extends AsyncTask<Void, Void, Boolean> {
         @Override
         protected Boolean doInBackground(Void... params) {
-            if ("http://feeds.bbci.co.uk/news/business/rss.xml".isEmpty())
-                return false;
-
             try {
-                URL url = new URL("http://feeds.bbci.co.uk/news/business/rss.xml");
-                InputStream inputStream = url.openConnection().getInputStream();
-                _rssModels = parseFeed(inputStream);
+                if (_inputStream == null)
+                {
+                    URL url = new URL("http://feeds.bbci.co.uk/news/business/rss.xml");
+                    _inputStream = url.openConnection().getInputStream();
+                }
+                if (_rssModels == null){
+                    _rssModels = getNextNewsFromRssFeed();
+                } else {
+                    _rssModels.addAll(getNextNewsFromRssFeed());
+                }
                 return true;
             } catch (IOException e) {
                 Log.e("MainActivity", "IO error", e);
@@ -153,21 +196,18 @@ public class MainActivity extends AppCompatActivity{
 
         @Override
         protected void onPreExecute() {
-            //_swipeLayout.setRefreshing(true);
-            Toast.makeText(MainActivity.this,
-                    "Trying to load Yabdex Games RSS",
-                    Toast.LENGTH_LONG).show();
+            _swipeLayout.setRefreshing(true);
         }
 
         @Override
         protected void onPostExecute(Boolean success) {
-            //_swipeLayout.setRefreshing(false);
+            _swipeLayout.setRefreshing(false);
 
             if (success) {
                 _rssRecycleView.setAdapter(new RecycleViewRssAdapter(_rssModels));
             } else {
                 Toast.makeText(MainActivity.this,
-                        "Yandex Games RSS are not available now. Check your internet connection",
+                        "BBC Business News RSS are not available now. Check your internet connection",
                         Toast.LENGTH_LONG).show();
             }
         }

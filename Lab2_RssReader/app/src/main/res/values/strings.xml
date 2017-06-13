@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">RSS Reader</string>
+    <string name="app_name">BBC Business RSS Reader</string>
     <string name="load_rss_button">Load BBC Business News</string>
 </resources>

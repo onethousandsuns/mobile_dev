@@ -21,7 +21,6 @@ public class RecycleViewRssAdapter extends RecyclerView.Adapter<RssModelViewHold
         ((TextView)holder.rssItemView.findViewById(R.id.titleText)).setText(rssModel._title);
         ((TextView)holder.rssItemView.findViewById(R.id.pubDate)).setText(rssModel._pubDate);
         ((TextView)holder.rssItemView.findViewById(R.id.linkText)).setText(rssModel._link);
-//        ((TextView)holder.rssItemView.findViewById(R.id.descriptionText)).setText(rssModel._description);
     }
 
     @Override
