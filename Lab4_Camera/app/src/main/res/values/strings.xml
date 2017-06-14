@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">Lab4_Camera</string>
-    <string name="take_photo_button">Take Photo</string>
+    <string name="camera_error">Something wrong with your camera</string>
+    <string name="camera_running">Running camera application</string>
+    <string name="saved_to">File saved to:</string>
+    <string name="button_description">takePhotoButton</string>
 </resources>
