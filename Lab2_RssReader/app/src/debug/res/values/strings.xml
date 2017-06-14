@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="rss_success">RSS successfully loaded</string>
+    <string name="rss_refresh_error">Error. BBC Business News RSS are not available now. Try again later.</string>
+    <string name="swipe_down">Swipe down to load BBC Business RSS feed</string>
+    <string name="check_connection">BBC Business News RSS are not available now. Check your internet connection</string>
+</resources>

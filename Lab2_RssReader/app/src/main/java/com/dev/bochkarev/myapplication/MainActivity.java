@@ -27,6 +27,7 @@ public class MainActivity extends AppCompatActivity{
 
     private InputStream _inputStream;
     private XmlPullParser _xmlPullParser;
+    private LinearLayoutManager _linearLayoutManager;
 
     private static int NEWS_SCROOL_SPEED = 10;
 
@@ -35,7 +36,7 @@ public class MainActivity extends AppCompatActivity{
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         Toast.makeText(MainActivity.this,
-                "Swipe down to load BBC Business RSS feed",
+                R.string.swipe_down,
                 Toast.LENGTH_LONG).show();
 
         _inputStream = null;
@@ -44,17 +45,27 @@ public class MainActivity extends AppCompatActivity{
         _swipeLayout = (SwipeRefreshLayout) findViewById(R.id.swipeLayout);
         _rssRecycleView = (RecyclerView) findViewById(R.id.rssRecycleVIew);
 
-        final LinearLayoutManager linearLayoutManager = new LinearLayoutManager(this);
-        linearLayoutManager.setOrientation(LinearLayoutManager.VERTICAL);
-        _rssRecycleView.setLayoutManager(linearLayoutManager);
+        _linearLayoutManager = new LinearLayoutManager(this);
+        _linearLayoutManager.setOrientation(LinearLayoutManager.VERTICAL);
+        _rssRecycleView.setLayoutManager(_linearLayoutManager);
         _rssRecycleView.setAdapter( new RecycleViewRssAdapter(_rssModels) );
 
-        setOnScrollListener(linearLayoutManager);
+        setOnScrollListener();
 
         _swipeLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
             public void onRefresh() {
                 _rssRecycleView.setRecycledViewPool(new RecyclerView.RecycledViewPool());
+                _rssRecycleView.clearOnScrollListeners();
+
+                new restartRssFeedTask().execute();
+            }
+        });
+    }
+
+    private class restartRssFeedTask extends AsyncTask<Void , Void, Boolean> {
+        protected Boolean doInBackground(Void... params) {
+            try{
                 if (_rssModels != null){
                     _rssModels.clear();
                 }
@@ -69,25 +80,43 @@ public class MainActivity extends AppCompatActivity{
                 if (_xmlPullParser != null){
                     _xmlPullParser = null;
                 }
-                _rssRecycleView.clearOnScrollListeners();
-                setOnScrollListener(linearLayoutManager);
+                setOnScrollListener();
                 Log.d("RefreshListener", "User refreshed rss feed");
-                Toast.makeText(MainActivity.this,
-                    "Trying to refresh RSS feed ",
-                    Toast.LENGTH_LONG).show();
-
                 loadNextDataFromApi();
+                return true;
+            } catch (Exception e){
+                return false;
             }
-        });
+        }
+
+        @Override
+        protected void onPreExecute() {
+            Toast.makeText(MainActivity.this,
+                    "Trying to refresh RSS feed ",
+                    Toast.LENGTH_SHORT).show();
+        }
+
+        @Override
+        protected void onPostExecute(Boolean success) {
+            if (success) {
+                Toast.makeText(MainActivity.this,
+                        R.string.rss_success,
+                        Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(MainActivity.this,
+                        R.string.rss_refresh_error,
+                        Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     private void loadNextDataFromApi() {
         new RssLoader().execute((Void) null);
     }
 
-    private void setOnScrollListener(LinearLayoutManager linearLayoutManager)
+    private void setOnScrollListener()
     {
-        _rssRecycleView.setOnScrollListener(new EndlessRecyclerOnScrollListener(linearLayoutManager) {
+        _rssRecycleView.setOnScrollListener(new EndlessRecyclerOnScrollListener(_linearLayoutManager) {
             @Override
             public void onLoadMore(int current_page) {
                 loadNextDataFromApi();
@@ -207,7 +236,7 @@ public class MainActivity extends AppCompatActivity{
                 _rssRecycleView.setAdapter(new RecycleViewRssAdapter(_rssModels));
             } else {
                 Toast.makeText(MainActivity.this,
-                        "BBC Business News RSS are not available now. Check your internet connection",
+                        R.string.check_connection,
                         Toast.LENGTH_LONG).show();
             }
         }
